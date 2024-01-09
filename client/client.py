@@ -19,7 +19,6 @@ def update_player_list(player_list):
     player_labels.clear()
 
     for player in player_list.split(', '):
-        print(player.rsplit(' (', 1))
         nickname, color = player.rsplit(' (', 1)
         color = color.rstrip(')\n').strip() 
 
@@ -42,7 +41,6 @@ def listen_for_updates():
             data = sock.recv(1024).decode()
             if not data:
                 break
-            print(data)
             if "Game starts in" in data:
                 root.after(0, update_timer, data)
             elif "Game started" in data:
@@ -50,7 +48,6 @@ def listen_for_updates():
             elif "COORD" in data:
                 res = decode_coordinates(data)
                 for move in res:
-                    print(move)
                     color, x, y = move
                     if color != player_color:
                         root.after_idle(update_dot_position, x, y, color)
