@@ -10,10 +10,11 @@
 #include <chrono>
 #include <map>
 #include <memory> 
-#include "Group.h"
+#include "modules/Group.h"
+#include <sstream>
 
 
-std::vector<std::unique_ptr<Group>> groups; // Use unique_ptr for Group objects // Grupy po 4 graczy
+std::vector<std::unique_ptr<Group>> groups;
 std::mutex groups_mtx;
 
 
@@ -21,16 +22,16 @@ void handle_client(int client_socket) {
     char buffer[1024] = {0};
     read(client_socket, buffer, 1024);
     std::string nick(buffer);
-    nick = nick.substr(0, nick.find('\n')); // Trimming newline if present
+    nick = nick.substr(0, nick.find('\n')); 
 
-    std::cout << "Received nickname: " << nick << " from socket: " << client_socket << std::endl; // Debug print
+    std::cout << "Received nickname: " << nick << " from socket: " << client_socket << std::endl; 
 
     std::lock_guard<std::mutex> lock(groups_mtx);
     
     // Check if a new group needs to be created
      if (groups.empty() || groups.back()->getClients().size() == 4) {
         groups.emplace_back(std::make_unique<Group>());
-        std::cout << "New group created." << std::endl; // Debug print
+        std::cout << "New group created." << std::endl; 
     }
 
     Group& current_group = *groups.back();
@@ -43,13 +44,16 @@ void handle_client(int client_socket) {
         case 3: color = "yellow"; break;
         default: color = "unknown";
     }
-    std::cout << "Assigning color: " << color << " to nickname: " << nick << std::endl; // Debug print
+    std::cout << "Assigning color: " << color << " to nickname: " << nick << std::endl; 
 
     current_group.addClient(client_socket, nick, color);
-
+    std::thread message_thread(&Group::handleClientMessages, &current_group, client_socket); // Correct
+    message_thread.detach();
+    
     if (current_group.getClients().size() == 2 && !current_group.getStarted()) {
         std::thread timer_thread(&Group::startGameTimer, &current_group);
         timer_thread.detach();
+        
     }
 
     if (current_group.getStarted()) {
@@ -112,8 +116,6 @@ int main() {
         client_thread.detach();
     }
 
-    // Ta część kodu jest teraz nieosiągalna, ale pozostaje dla kompletności
-    // Zamykanie gniazd klientów i serwera
     for (auto& group : groups) {
         for (int client_socket : group->getClients()) {
             close(client_socket);

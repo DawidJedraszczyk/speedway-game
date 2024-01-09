@@ -20,6 +20,7 @@ public:
     void setStarted();
     void sendToAllClients(const std::string& message);
     void startGameTimer();
+    void handleClientMessages(int client_socket);
 };
 
 #endif

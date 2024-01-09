@@ -58,3 +58,25 @@ void Group::startGameTimer() {
         sendToAllClients("Game started");
     }
 }
+
+void Group::handleClientMessages(int client_socket) {
+    char buffer[1024];
+
+    while (true) {
+        memset(buffer, 0, sizeof(buffer));
+        int bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
+
+        if (bytes_read <= 0) {
+            // Handle disconnection or error
+            std::cerr << "Client disconnected or error occurred. Socket: " << client_socket << std::endl;
+            close(client_socket);  // Close the socket to release resources
+            break;
+        }
+
+        std::string message(buffer);
+        std::cout << "Received message from socket " << client_socket << ": " << message << std::endl;
+
+        // Optionally, you can add further processing of the message here.
+        sendToAllClients(message);
+    }
+}

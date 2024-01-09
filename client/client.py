@@ -18,7 +18,7 @@ def update_player_list(player_list):
     player_labels.clear()
 
     for player in player_list.split(', '):
-        print(player)
+        print(player.rsplit(' (', 1))
         nickname, color = player.rsplit(' (', 1)
         color = color.rstrip(')\n').strip() 
 
@@ -42,8 +42,11 @@ def listen_for_updates():
             if data:
                 if "Game starts in" in data:
                     root.after(0, update_timer, data)
-                elif  "Game started" in data:
+                elif "Game started" in data:
                     load_stadium_view()
+                elif "COORD" in data:
+                    x, y, color = parse_input(data)
+                    update_dot_position(x, y, color)
                 else:
                     root.after(0, update_player_list, data)
             else:
@@ -51,6 +54,20 @@ def listen_for_updates():
         except socket.error as e:
             print(f"Error: {e}")
             break
+
+def parse_input(input_string):
+    # Splitting the string into parts
+    parts = input_string.split(';')
+    
+    # Parsing coordinates
+    coord_part = parts[0].split(':')[1].strip()  # "x, y"
+    x, y = coord_part.split(',')
+
+    # Parsing color
+    color_part = parts[1].split(':')[1].strip()
+
+    return float(x), float(y), color_part
+
 
 def connect_to_server(nick, server_address=('127.0.0.1', 8000)):
     global sock
@@ -109,27 +126,41 @@ def load_stadium_view():
     canvas.update()
 
     # Obsługa ruchu kropki
-    root.bind("<Left>", lambda e: move_dot(-10, 0))
-    root.bind("<Right>", lambda e: move_dot(10, 0))
-    root.bind("<Up>", lambda e: move_dot(0, -10))
-    root.bind("<Down>", lambda e: move_dot(0, 10))
+    root.bind("<Left>", lambda e: move_user_dot(-10, 0))
+    root.bind("<Right>", lambda e: move_user_dot(10, 0))
+    root.bind("<Up>", lambda e: move_user_dot(0, -10))
+    root.bind("<Down>", lambda e: move_user_dot(0, 10))
 
 # Funkcja do przesuwania kropki
-def move_dot(dx, dy):
-    global player_color, dots
-    print(f"Attempting to move {player_color} dot")
+def move_user_dot(dx, dy):
+    global dots, player_color
     if player_color in dots:
         x1, y1, x2, y2 = canvas.coords(dots[player_color])
-        new_x = x1 + dx
-        new_y = y1 + dy
-        update_dot_position(new_x, new_y)
+        new_x = max(0, min(canvas.winfo_width(), x1 + dx))  # Prevent x-coordinate from going out of bounds
+        new_y = max(0, min(canvas.winfo_height(), y1 + dy)) # Prevent y-coordinate from going out of bounds
+       
+        update_dot_position(new_x, new_y, player_color)
+        send_coordinates(new_x, new_y)
 
-def update_dot_position(x, y):
-    global player_color, dots
+def move_rival_dot(dx, dy, color):
+    global dots, player_color
+    if player_color != color and color in dots:
+        x1, y1, x2, y2 = canvas.coords(dots[color])
+        new_x = max(0, min(canvas.winfo_width(), x1 + dx))  # Prevent x-coordinate from going out of bounds
+        new_y = max(0, min(canvas.winfo_height(), y1 + dy)) # Prevent y-coordinate from going out of bounds
+       
+        update_dot_position(new_x, new_y, color)
+
+def send_coordinates(x, y):
+    global sock, player_color
+    coordinates = f"COORD:{x}, {y}; COLOR:{player_color}"
+    sock.sendall(coordinates.encode())
+
+def update_dot_position(x, y, color):
+    global dots
     dot_size = 8
-    if player_color in dots:
-        canvas.coords(dots[player_color], x, y, x + dot_size, y + dot_size)
-        print(f"New {player_color} dot position: ({x}, {y})")
+    if color in dots:
+        canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
 
 
 # GUI setup
