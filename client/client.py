@@ -3,6 +3,7 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 from PIL import Image, ImageTk, ImageDraw
+import re
 
 # Global variables
 player_labels = []
@@ -40,13 +41,22 @@ def listen_for_updates():
         try:
             data = sock.recv(1024).decode()
             if data:
+                print(data)
                 if "Game starts in" in data:
                     root.after(0, update_timer, data)
                 elif "Game started" in data:
                     load_stadium_view()
+                elif "RED-COORD" in data:
+                    res = decode_coordinates(data)
+                    for r in res:
+                        print(r)
+                    #update_dot_position(x, y, 'red')
                 elif "COORD" in data:
-                    x, y, color = parse_input(data)
-                    update_dot_position(x, y, color)
+                    res = decode_coordinates(data)
+                    for move in res:
+                        print(move)
+                        x, y, color = move
+                        update_dot_position(x, y, color)
                 else:
                     root.after(0, update_player_list, data)
             else:
@@ -55,18 +65,15 @@ def listen_for_updates():
             print(f"Error: {e}")
             break
 
-def parse_input(input_string):
-    # Splitting the string into parts
-    parts = input_string.split(';')
-    
-    # Parsing coordinates
-    coord_part = parts[0].split(':')[1].strip()  # "x, y"
-    x, y = coord_part.split(',')
+def decode_coordinates(input_string):
+    pattern = r"(RED|BLUE|WHITE|YELLOW)-COORD:([+-]?[0-9]*\.?[0-9]+), ([+-]?[0-9]*\.?[0-9]+);"
+    matches = re.findall(pattern, input_string)
 
-    # Parsing color
-    color_part = parts[1].split(':')[1].strip()
+    # Create a list of lists including the color and coordinates
+    coordinates_list = [[match[0].lower(), float(match[1]), float(match[2])] for match in matches]
 
-    return float(x), float(y), color_part
+    return coordinates_list
+
 
 
 def connect_to_server(nick, server_address=('127.0.0.1', 8000)):
@@ -124,7 +131,7 @@ def load_stadium_view():
 
     # Redraw the canvas
     canvas.update()
-    
+
     moving_thread = threading.Thread(target=moving)
     moving_thread.start()
     
@@ -148,18 +155,9 @@ def move_user_dot(dx, dy):
         update_dot_position(new_x, new_y, player_color)
         send_coordinates(new_x, new_y)
 
-def move_rival_dot(dx, dy, color):
-    global dots, player_color
-    if player_color != color and color in dots:
-        x1, y1, x2, y2 = canvas.coords(dots[color])
-        new_x = max(0, min(canvas.winfo_width(), x1 + dx))  # Prevent x-coordinate from going out of bounds
-        new_y = max(0, min(canvas.winfo_height(), y1 + dy)) # Prevent y-coordinate from going out of bounds
-       
-        update_dot_position(new_x, new_y, color)
-
 def send_coordinates(x, y):
     global sock, player_color
-    coordinates = f"COORD:{x}, {y}; COLOR:{player_color}"
+    coordinates = f"{player_color.upper()}-COORD:{x}, {y};"
     sock.sendall(coordinates.encode())
 
 def update_dot_position(x, y, color):
@@ -171,7 +169,7 @@ def update_dot_position(x, y, color):
 
 # GUI setup
 root = tk.Tk()
-root.title("Client GUI")
+root.title("Speedway game")
 
 # Load and display an image (adjust the path to your image)
 image_path = './static/images/logo.png'
