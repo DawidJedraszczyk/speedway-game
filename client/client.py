@@ -99,7 +99,7 @@ def load_stadium_view():
     stadium_image = Image.open(stadium_image_path)
 
     # Resize the image (optional, remove if causing issues)
-    stadium_image = stadium_image.resize((1280, 720), Image.ANTIALIAS)
+    stadium_image = stadium_image.resize((1280, 720), Image.LANCZOS)
 
     stadium_photo = ImageTk.PhotoImage(stadium_image)
 
@@ -124,12 +124,18 @@ def load_stadium_view():
 
     # Redraw the canvas
     canvas.update()
-
-    # Obsługa ruchu kropki
+    
+    moving_thread = threading.Thread(target=moving)
+    moving_thread.start()
+    
+def moving():
+    global root
     root.bind("<Left>", lambda e: move_user_dot(-10, 0))
     root.bind("<Right>", lambda e: move_user_dot(10, 0))
     root.bind("<Up>", lambda e: move_user_dot(0, -10))
     root.bind("<Down>", lambda e: move_user_dot(0, 10))
+
+
 
 # Funkcja do przesuwania kropki
 def move_user_dot(dx, dy):
@@ -171,7 +177,7 @@ root.title("Client GUI")
 image_path = './static/images/logo.png'
 original_image = Image.open(image_path)
 max_size = (300, 300)
-original_image.thumbnail(max_size, Image.ANTIALIAS)
+original_image.thumbnail(max_size, Image.LANCZOS)
 logo_photo = ImageTk.PhotoImage(original_image)
 logo_label = tk.Label(root, image=logo_photo, borderwidth=0, highlightthickness=0)
 logo_label.pack(pady=20)
