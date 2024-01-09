@@ -137,8 +137,6 @@ def moving():
     root.bind("<Up>", lambda e: move_user_dot(0, -10))
     root.bind("<Down>", lambda e: move_user_dot(0, 10))
 
-
-
 # Funkcja do przesuwania kropki
 def move_user_dot(dx, dy):
     global dots, player_color
@@ -149,6 +147,7 @@ def move_user_dot(dx, dy):
        
         update_dot_position(new_x, new_y, player_color)
         send_coordinates(new_x, new_y)
+        root.after(100, lambda: None)
 
 def send_coordinates(x, y):
     global sock, player_color
