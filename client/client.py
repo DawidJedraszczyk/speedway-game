@@ -40,23 +40,22 @@ def listen_for_updates():
     while True:
         try:
             data = sock.recv(1024).decode()
-            if data:
-                print(data)
-                if "Game starts in" in data:
-                    root.after(0, update_timer, data)
-                elif "Game started" in data:
-                    load_stadium_view()
-                elif "COORD" in data:
-                    res = decode_coordinates(data)
-                    for move in res:
-                        print(move)
-                        color, x, y = move
-                        if color != player_color:
-                            update_dot_position(x, y, color)
-                else:
-                    root.after(0, update_player_list, data)
-            else:
+            if not data:
                 break
+            print(data)
+            if "Game starts in" in data:
+                root.after(0, update_timer, data)
+            elif "Game started" in data:
+                load_stadium_view()
+            elif "COORD" in data:
+                res = decode_coordinates(data)
+                for move in res:
+                    print(move)
+                    color, x, y = move
+                    if color != player_color:
+                        root.after_idle(update_dot_position, x, y, color)
+            else:
+                root.after_idle(update_player_list, data)
         except socket.error as e:
             print(f"Error: {e}")
             break
@@ -161,7 +160,7 @@ def update_dot_position(x, y, color):
     dot_size = 8
     if color in dots:
         canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
-
+        
 
 # GUI setup
 root = tk.Tk()
