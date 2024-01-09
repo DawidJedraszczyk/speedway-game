@@ -24,14 +24,11 @@ void handle_client(int client_socket) {
     std::string nick(buffer);
     nick = nick.substr(0, nick.find('\n')); 
 
-    std::cout << "Received nickname: " << nick << " from socket: " << client_socket << std::endl; 
-
     std::lock_guard<std::mutex> lock(groups_mtx);
     
     // Check if a new group needs to be created
      if (groups.empty() || groups.back()->getClients().size() == 4) {
         groups.emplace_back(std::make_unique<Group>());
-        std::cout << "New group created." << std::endl; 
     }
 
     Group& current_group = *groups.back();
@@ -44,7 +41,6 @@ void handle_client(int client_socket) {
         case 3: color = "yellow"; break;
         default: color = "unknown";
     }
-    std::cout << "Assigning color: " << color << " to nickname: " << nick << std::endl; 
 
     current_group.addClient(client_socket, nick, color);
     std::thread message_thread(&Group::handleClientMessages, &current_group, client_socket); // Correct

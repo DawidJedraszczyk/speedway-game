@@ -36,7 +36,7 @@ def update_timer(message):
     timer_label.config(text=message)
 
 def listen_for_updates():
-    global sock
+    global sock, player_color
     while True:
         try:
             data = sock.recv(1024).decode()
@@ -46,17 +46,13 @@ def listen_for_updates():
                     root.after(0, update_timer, data)
                 elif "Game started" in data:
                     load_stadium_view()
-                elif "RED-COORD" in data:
-                    res = decode_coordinates(data)
-                    for r in res:
-                        print(r)
-                    #update_dot_position(x, y, 'red')
                 elif "COORD" in data:
                     res = decode_coordinates(data)
                     for move in res:
                         print(move)
-                        x, y, color = move
-                        update_dot_position(x, y, color)
+                        color, x, y = move
+                        if color != player_color:
+                            update_dot_position(x, y, color)
                 else:
                     root.after(0, update_player_list, data)
             else:
