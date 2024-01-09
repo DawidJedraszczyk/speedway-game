@@ -11,6 +11,9 @@ sock = None
 nick = None
 player_color = None
 players = {}
+is_update_scheduled = False
+update_interval = 16
+
 
 def update_player_list(player_list):
     global player_labels, player_color, dots
@@ -120,9 +123,9 @@ def load_stadium_view():
             pos = dot_positions[color]
             dots[color] = canvas.create_oval(pos[0], pos[1], pos[0] + dot_size, pos[1] + dot_size, fill=color)
 
-
     # Redraw the canvas
-    canvas.update()
+    update()
+
 
     moving_thread = threading.Thread(target=moving)
     moving_thread.start()
@@ -134,17 +137,26 @@ def moving():
     root.bind("<Up>", lambda e: move_user_dot(0, -10))
     root.bind("<Down>", lambda e: move_user_dot(0, 10))
 
+def schedule_update():
+    global is_update_scheduled
+    if not is_update_scheduled:
+        is_update_scheduled = True
+        root.after(update_interval, perform_update)
+
+def perform_update():
+    global is_update_scheduled
+    canvas.update()
+    is_update_scheduled = False
+
+
 # Funkcja do przesuwania kropki
 def move_user_dot(dx, dy):
     global dots, player_color
     if player_color in dots:
-        x1, y1, x2, y2 = canvas.coords(dots[player_color])
-        new_x = max(0, min(canvas.winfo_width(), x1 + dx))  # Prevent x-coordinate from going out of bounds
-        new_y = max(0, min(canvas.winfo_height(), y1 + dy)) # Prevent y-coordinate from going out of bounds
-       
-        update_dot_position(new_x, new_y, player_color)
-        send_coordinates(new_x, new_y)
-        root.after(100, lambda: None)
+        canvas.move(dots[player_color], dx, dy)  # Przesunięcie kropki
+        send_coordinates(*canvas.coords(dots[player_color])[:2])  # Aktualizacja koordynatów i wysłanie
+        schedule_update()  # Zaplanuj aktualizację
+
 
 def send_coordinates(x, y):
     global sock, player_color
@@ -157,6 +169,10 @@ def update_dot_position(x, y, color):
     if color in dots:
         canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
         
+def update():
+    canvas.update()
+    root.after(16, update)  # Aktualizacja co około 60 razy na sekundę
+
 
 # GUI setup
 root = tk.Tk()
