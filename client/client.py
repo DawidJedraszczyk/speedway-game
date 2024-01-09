@@ -72,7 +72,7 @@ def decode_coordinates(input_string):
 
 
 
-def connect_to_server(nick, server_address=('127.0.0.1', 8000)):
+def connect_to_server(nick, server_address=('192.168.1.63', 8000)):
     global sock
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
