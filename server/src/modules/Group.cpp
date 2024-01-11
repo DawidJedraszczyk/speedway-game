@@ -5,10 +5,11 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <regex>
 
 void Group::addClient(int client_socket, const std::string& nickname, const std::string& color) {
     client_sockets.push_back(client_socket);
-    players.push_back(std::make_pair(nickname, color));
+    players.push_back({nickname, color});
 }
 
 std::vector<int>& Group::getClients() {
@@ -21,24 +22,9 @@ std::string Group::getNicknamesString() const {
         if (!playerStr.empty()) {
             playerStr += ", ";
         }
-        playerStr += player.first + " (" + player.second + ")"; // Concatenating nickname and color
+        playerStr += player.nickname + " (" + player.color + ")";
     }
     return playerStr;
-}
-
-bool Group::getStarted() const {
-    return group_started;
-}
-
-void Group::setStarted() {
-    group_started = true;
-}
-
-void Group::sendToAllClients(const std::string& message) {
-    std::cout << "message: " << message << std::endl; // Debug print
-    for (int client_socket : client_sockets) {
-        send(client_socket, message.c_str(), message.size(), 0);
-    }
 }
 
 void Group::startGameTimer() {
@@ -59,8 +45,19 @@ void Group::startGameTimer() {
     }
 }
 
+void Group::sendToAllClients(const std::string& message) {
+    for (int client_socket : client_sockets) {
+        send(client_socket, message.c_str(), message.size(), 0);
+    }
+}
+
+bool Group::getStarted() const {
+    return group_started;
+}
+
 void Group::handleClientMessages(int client_socket) {
     char buffer[1024];
+    std::regex timePattern("(red|blue|white|yellow)-TIME: ([0-9]+\\.[0-9]+)");
 
     while (true) {
         memset(buffer, 0, sizeof(buffer));
@@ -73,7 +70,24 @@ void Group::handleClientMessages(int client_socket) {
         }
 
         std::string message(buffer);
+        std::smatch matches;
 
-        sendToAllClients(message);
+        if (std::regex_search(message, matches, timePattern) && matches.size() > 2) {
+            std::string player_nickname = matches[1].str();
+            double player_time = std::stod(matches[2]);
+            game.addTime(player_nickname, player_time);
+            if (game.getCurrentRoundTimesSize() == players.size()){
+                std::stringstream timesTable;
+                for (const auto& time : game.getCurrentRoundTimes()) {
+                    timesTable << time.first << ", " << time.second << ";";
+                }
+                sendToAllClients("TIMES: " + timesTable.str());
+                game.add_played_round();
+                
+            }
+        }
+        else {
+            sendToAllClients(message);
+        }
     }
 }

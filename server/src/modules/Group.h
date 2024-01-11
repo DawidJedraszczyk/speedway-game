@@ -4,23 +4,25 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include "Player.h"
+#include "Game.h"
 
 class Group {
 private:
-    std::vector<std::pair<std::string, std::string>> players; //nickname, color
+    std::vector<Player> players; //nickname, color
     std::vector<int> client_sockets;
     bool group_started = false;
     std::mutex mtx;
+    Game game;
 
 public:
     void addClient(int client_socket, const std::string& nickname, const std::string& color);
     std::vector<int>& getClients();
     std::string getNicknamesString() const;
-    bool getStarted() const;
-    void setStarted();
     void sendToAllClients(const std::string& message);
-    void startGameTimer();
     void handleClientMessages(int client_socket);
+    void startGameTimer();
+    bool getStarted() const;
 };
 
 #endif

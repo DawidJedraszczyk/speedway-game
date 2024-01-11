@@ -8,8 +8,8 @@
       "args": [],
       "stopAtEntry": false,
       "externalConsole": false,
-      "cwd": "/home/dawid/Public/studia/sieci/server/src",
-      "program": "/home/dawid/Public/studia/sieci/server/src/build/Debug/outDebug",
+      "cwd": "/home/dawid/Public/studia/sieci/server/src/modules",
+      "program": "/home/dawid/Public/studia/sieci/server/src/modules/build/Debug/outDebug",
       "MIMode": "gdb",
       "miDebuggerPath": "gdb",
       "setupCommands": [
