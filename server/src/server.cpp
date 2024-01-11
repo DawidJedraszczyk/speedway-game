@@ -43,7 +43,7 @@ void handle_client(int client_socket) {
     }
 
     current_group.addClient(client_socket, nick, color);
-    std::thread message_thread(&Group::handleClientMessages, &current_group, client_socket); // Correct
+    std::thread message_thread(&Group::handleClientMessages, &current_group, client_socket);
     message_thread.detach();
     
     if (current_group.getClients().size() == 2 && !current_group.getStarted()) {
@@ -59,7 +59,9 @@ void handle_client(int client_socket) {
     }
 
     std::string message = current_group.getNicknamesString();
-    current_group.sendToAllClients(message);
+    std::stringstream playersList;
+    playersList << "PLAYERS: " << message << ";";
+    current_group.sendToAllClients(playersList.str());
 
     if (current_group.getClients().size() == 4) {
         current_group.sendToAllClients("Skład pełen");

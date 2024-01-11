@@ -71,6 +71,7 @@ void Group::handleClientMessages(int client_socket) {
 
         std::string message(buffer);
         std::smatch matches;
+        std::pair<std::string, double> best_time;
 
         if (std::regex_search(message, matches, timePattern) && matches.size() > 2) {
             std::string player_nickname = matches[1].str();
@@ -79,11 +80,29 @@ void Group::handleClientMessages(int client_socket) {
             if (game.getCurrentRoundTimesSize() == players.size()){
                 std::stringstream timesTable;
                 for (const auto& time : game.getCurrentRoundTimes()) {
-                    timesTable << time.first << ", " << time.second << ";";
+                    timesTable << "TIMES: " << time.first << ", " << time.second << ";";
                 }
-                sendToAllClients("TIMES: " + timesTable.str());
-                game.add_played_round();
-                
+                sendToAllClients(timesTable.str());
+
+                game.afterRoundCalculations();
+                int played_rounds = game.getPlayedRounds();
+                std::stringstream pointsTable;
+                for (const auto& players_points : game.getPlayersPoints()){
+                    pointsTable << "POINTS: " << players_points.first << ", " << players_points.second << ";";
+                }
+                sendToAllClients(pointsTable.str());
+
+                if (played_rounds == 2){
+                    best_time = game.getBestTime();
+                    std::stringstream endGameMessage;
+                    endGameMessage << "END: " << best_time.first << "," << best_time.second << ";";
+                    sendToAllClients(endGameMessage.str());
+                }
+                else {
+                    std::stringstream notEndGameMessage;
+                    notEndGameMessage << "NEXT-ROUND:" << played_rounds << ";";
+                    sendToAllClients(notEndGameMessage.str());
+                }
             }
         }
         else {

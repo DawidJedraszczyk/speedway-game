@@ -18,7 +18,7 @@ player_unreached_checkpoints = ['left', 'down', 'right', 'up']
 player_lap = 0
 player_points = 0
 block_moving = True
-
+round = 0
 
 def player_reached_checkpoint(checkpoint):
     global player_unreached_checkpoints, player_points, player_lap, start_time, end_time, square, canvas, player_race_time, block_moving
@@ -29,17 +29,17 @@ def player_reached_checkpoint(checkpoint):
             players[player_color] = [nick, player_lap, player_points]
             update_lap_count(nick, player_lap)
             send_lap()
-            if player_lap == 1:
+            if player_lap == 2:
                 end_time = time.time()
                 player_race_time = end_time - start_time
-                block_moving = True
                 time.sleep(1)
+                block_moving = True
                 send_time()
             player_unreached_checkpoints = checkpoints_list
 
 def check_if_player_reached_checkpoint(x, y):
     # Pierwszy punkt: x=640 y=od 120do210 
-    if x == 640 and (120 <= y <= 210):
+    if x == 630 and (120 <= y <= 210):
         player_reached_checkpoint('up')
 
     # drugi punkt: x=od90 do 230 y=360
@@ -54,12 +54,13 @@ def check_if_player_reached_checkpoint(x, y):
     if (1080 <= x <= 1200) and y == 360:
         player_reached_checkpoint('right')
 
-def update_player_list(player_list):
+def update_player_list(input_string):
     global player_labels, player_color, dots
     for label in player_labels:
         label.destroy()
     player_labels.clear()
 
+    player_list = input_string.replace("PLAYERS: ", "")
     for player in player_list.split(', '):
         nickname, color = player.rsplit(' (', 1)
         color = color.rstrip(')\n').strip() 
@@ -78,41 +79,75 @@ def update_timer(message):
     timer_label.config(text=message)
 
 def listen_for_updates():
-    global sock, player_color, canvas, square
+    global sock, player_color, canvas, square, players, round
     while True:
         try:
-            data = sock.recv(1024).decode()
-            if not data:
+            data_rec = sock.recv(1024).decode()
+            if not data_rec:
                 break
-            if "Game starts in" in data:
-                root.after(0, update_timer, data)
-            elif "Game started" in data:
-                load_stadium_view()
-            elif "COORD" in data:
-                res = decode_coordinates(data)
-                for move in res:
-                    color, x, y = move
-                    if color != player_color:
-                        root.after_idle(update_dot_position, x, y, color)
-            elif "LAP" in data:
-                laps = decode_laps(data)
-                for lap in laps:
-                    color, lap_number = lap
-                    player = players[color][0]
-                    players[color][1] = lap_number
-                    if color != player_color:
-                        update_lap_count(player, lap_number)
-            elif "TIMES" in data:
-                times = decode_times(data)
-                show_times_modal(times)
-            else:
-                root.after_idle(update_player_list, data)
+            data_parts = data_rec.split(';')
+            for data in data_parts:
+                if "Game starts in" in data:
+                    root.after(0, update_timer, data)
+                if "Game started" in data:
+                    load_stadium_view()
+                if "COORD" in data:
+                    res = decode_coordinates(data)
+                    for move in res:
+                        color, x, y = move
+                        if color != player_color:
+                            root.after_idle(update_dot_position, x, y, color)
+                if "LAP" in data:
+                    laps = decode_laps(data)
+                    for lap in laps:
+                        color, lap_number = lap
+                        player = players[color][0]
+                        players[color][1] = lap_number
+                        if color != player_color:
+                            update_lap_count(player, lap_number)
+                if "TIMES" in data:
+                    times = decode_times(data)
+                    show_times_modal(times)
+                if "POINTS" in data:
+                    points = decode_points(data)
+                    for player_points in points:
+                        color, points = player_points
+                        player = players[color][0]
+                        players[color][2] = points
+                        update_points_modal(player, points)
+                if "NEXT-ROUND" in data:
+                    time.sleep(5)
+                    round = decode_round(data)
+                    load_stadium_view()
+                if "END" in data:
+                    best_time = decode_best_time(data)
+                    create_end_game_modal(best_time)
+                if "PLAYERS" in data:
+                    root.after_idle(update_player_list, data)
         except socket.error as e:
             print(f"Error: {e}")
             break
 
+def decode_best_time(input_string):
+    pattern = r'END:\s*([a-zA-Z]+),\s*([\d.]+)'
+    match = re.search(pattern, input_string)
+
+    return [match.group(1), match.group(2)]
+
+def decode_round(input_string):
+    pattern = r'NEXT-ROUND:\s*(\d)'
+    match = re.search(pattern, input_string)
+
+    return match.group(1)
+
+def decode_points(input_string):
+    matches = re.findall(r'(\w+), (\d+)', input_string)
+
+    result = [[color, int(number)] for color, number in matches]
+    return result
+
 def decode_times(input_string):
-    timePattern = re.compile(r'(\w+), (\d+\.\d+);')
+    timePattern = re.compile(r'(\w+), (\d+\.\d+)')
     matches = re.findall(timePattern, input_string)
 
     times_list = [[match[0].lower(), match[1]] for match in matches]
@@ -127,7 +162,7 @@ def decode_laps(input_string):
     return laps_list
 
 def decode_coordinates(input_string):
-    pattern = r"(red|blue|white|yellow)-COORD:([+-]?[0-9]*\.?[0-9]+), ([+-]?[0-9]*\.?[0-9]+);"
+    pattern = r"(red|blue|white|yellow)-COORD:([+-]?[0-9]*\.?[0-9]+), ([+-]?[0-9]*\.?[0-9]+)"
     matches = re.findall(pattern, input_string)
 
     # Create a list of lists including the color and coordinates
@@ -186,6 +221,7 @@ def load_stadium_view():
         if color in dot_positions:
             pos = dot_positions[color]
             dots[color] = canvas.create_oval(pos[0], pos[1], pos[0] + dot_size, pos[1] + dot_size, fill=color)
+
     create_lap_modal()
     create_points_modal()
     create_times_modal()
@@ -202,6 +238,25 @@ def show_times_modal(times):
 def hide_times_modal():
     global times_frame
     times_frame.place_forget()
+
+def create_end_game_modal(data):
+    global root, end_game_frame, player_times_labels, players
+    end_game_frame = tk.Frame(root, width=1280, height=720)
+    end_game_frame.pack_propagate(False)
+    color, best_time = data
+    player = players[color][0]
+
+    best_time_label = tk.Label(end_game_frame, text=f'Best time of this game: {player} {best_time}')
+    best_time_label.pack(expand=True)
+
+    points_label = tk.Label(end_game_frame, text='Players points: ')
+    points_label.pack(expand=True)
+
+    for color, [player, lap, points] in players.items():
+        player_label = tk.Label(end_game_frame, text=f'{player}: {points}')
+        player_label.pack(expand=True)
+    
+    end_game_frame.place(x=0, y=0)
 
 def create_times_modal():
     global root, times_frame, player_times_labels, players
@@ -237,7 +292,7 @@ def create_points_modal():
 def update_points_modal(player, new_points):
     global player_points_labels
     if player in player_points_labels:
-        player_points_labels[player].config(text=f"{player}: lap no. {new_points}")
+        player_points_labels[player].config(text=f"{player}: {new_points}")
 
 def create_lap_modal():
     global players, root, square, player_lap_labels
@@ -261,7 +316,11 @@ def update_lap_count(player, new_lap):
         player_lap_labels[player].config(text=f"{player}: lap no. {new_lap}")
 
 def start_game():
-    global canvas, start_time, block_moving
+    global canvas, start_time, block_moving, player_lap
+    player_lap = 0
+    for color, [player, lap, points] in players.items():
+        lap = 0
+        update_lap_count(player, lap)
     line_id = canvas.create_line(640, 110, 640, 210, fill="white", width=2)
     time.sleep(3)
     canvas.delete(line_id)
@@ -297,20 +356,13 @@ def check_keys():
 def move_user_dot(dx, dy):
     global dots, player_color
     if player_color in dots:
-        # canvas.move(dots[player_color], dx, dy)  # Przesunięcie kropki
-        # send_coordinates(*canvas.coords(dots[player_color])[:2])  # Aktualizacja koordynatów i wysłanie
         current_x, current_y = canvas.coords(dots[player_color])[:2]
-
-        # Calculate new coordinates
         new_x = current_x + dx
         new_y = current_y + dy
 
-        # Check if new coordinates are within the range 0 to 1000
         if 90 <= new_x <= 1200 and 120 <= new_y <= 610:
-            # Move the dot
             canvas.move(dots[player_color], dx, dy)
 
-            # Update coordinates and send them
             send_coordinates(new_x, new_y)
             check_if_player_reached_checkpoint(new_x, new_y)
 
@@ -322,13 +374,11 @@ def send_coordinates(x, y):
 def send_lap():
     global sock, player_lap
     message = f"{player_color}-LAP: {player_lap}"
-    print("SENDING MESSAGE ", message)
     sock.sendall(message.encode())
 
 def send_time():
     global sock, player_race_time
     message = f"{player_color}-TIME: {player_race_time}"
-    print("SENDING MESSAGE ", message)
     sock.sendall(message.encode())
 
 def update_dot_position(x, y, color):
