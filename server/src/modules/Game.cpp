@@ -26,7 +26,7 @@ const std::vector<std::pair<std::string, double>>& Game::getCurrentRoundTimes() 
 
 void Game::clearCurrentRoundTimes() {
     this->previous_rounds_times.insert(previous_rounds_times.end(), current_round_times.begin(), current_round_times.end());
-    current_round_times.clear(); // Optionally clear current_round_times
+    current_round_times.clear();
 }
 
 int Game::getCountOfPlayedRounds() const {

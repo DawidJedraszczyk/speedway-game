@@ -93,7 +93,7 @@ def connect_to_server(nick, server_address=('127.0.0.1', 8000)):
         sock.sendall(nick.encode())
 
         threading.Thread(target=listen_for_updates, daemon=True).start()
-        active_players_label = tk.Label(root, text='Aktualni gracze: ', bg='#ffffff', fg='black', font=("Helvetica", 12))
+        active_players_label = tk.Label(root, text='Ready players: ', bg='#ffffff', fg='black', font=("Helvetica", 12))
         active_players_label.pack()
         return sock
     except socket.error as err:
@@ -467,7 +467,7 @@ logo_label.pack(pady=100)
 # GUI Elements
 root.configure(bg='#ffffff')
 root.geometry("1280x720")
-style_label = tk.Label(root, text="Podaj swój nick:", bg='#ffffff', fg='black', font=("Helvetica", 12))
+style_label = tk.Label(root, text="Input Your nickname:", bg='#ffffff', fg='black', font=("Helvetica", 12))
 style_label.pack(pady=(0, 10))
 nick_entry = tk.Entry(root, font=("Helvetica", 12), fg='black')
 nick_entry.pack(pady=(0, 10))

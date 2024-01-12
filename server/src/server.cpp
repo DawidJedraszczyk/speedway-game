@@ -58,7 +58,7 @@ void handle_client(int client_socket) {
     current_group.sendToAllClients(playersList.str());
 
     if (current_group.getClients().size() == 4) {
-        current_group.sendToAllClients("Skład pełen");
+        current_group.sendToAllClients("Squad is full");
     }
 }
 
@@ -68,13 +68,11 @@ int main() {
     int opt = 1;
     int addrlen = sizeof(address);
 
-    // Tworzenie gniazda serwera
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("socket failed");
         exit(EXIT_FAILURE);
     }
 
-    // Opcje gniazda
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
@@ -84,7 +82,6 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(8000);
 
-    // Bindowanie gniazda do portu 8000
     if (bind(server_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
         perror("bind failed");
         exit(EXIT_FAILURE);
