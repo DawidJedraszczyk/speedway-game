@@ -27,7 +27,7 @@ void handle_client(int client_socket) {
     std::lock_guard<std::mutex> lock(groups_mtx);
     
     // Check if a new group needs to be created
-     if (groups.empty() || groups.back()->getClients().size() == 4) {
+     if (groups.empty() || groups.back()->getClients().size() == 4 || groups.back()->getStarted()) {
         groups.emplace_back(std::make_unique<Group>());
     }
 
