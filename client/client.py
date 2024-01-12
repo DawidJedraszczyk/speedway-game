@@ -21,6 +21,9 @@ player_points = 0
 block_moving = True
 round = 0
 players_coordinates = {}
+disconnected_colors = []
+game_started = False
+
 
 def player_reached_checkpoint(checkpoint):
     global player_unreached_checkpoints, player_points, player_lap, start_time, end_time, square, canvas, player_race_time, block_moving
@@ -84,7 +87,7 @@ def update_timer(message):
     timer_label.config(text=message)
 
 def listen_for_updates():
-    global sock, player_color, canvas, square, players, round, players_coordinates
+    global sock, player_color, canvas, square, players, round, players_coordinates, block_moving, game_started
     while True:
         try:
             data_rec = sock.recv(1024).decode()
@@ -95,6 +98,7 @@ def listen_for_updates():
                 if "Game starts in" in data:
                     root.after(0, update_timer, data)
                 if "Game started" in data:
+                    game_started = True
                     load_stadium_view()
                 if "COORD" in data:
                     res = decode_coordinates(data)
@@ -125,10 +129,17 @@ def listen_for_updates():
                     round = decode_round(data)
                     load_stadium_view()
                 if "END" in data:
+                    block_moving = True
                     best_time = decode_best_time(data)
                     create_end_game_modal(best_time)
                 if "PLAYERS" in data:
                     root.after_idle(update_player_list, data)
+                if "DISCONNECTED" in data:
+                    color = data.split(": ")[1]
+                    if game_started:
+                        hide_player(color)
+                    else:
+                        disconnected_colors.append(color)
         except socket.error as e:
             print(f"Error: {e}")
             break
@@ -136,8 +147,10 @@ def listen_for_updates():
 def decode_best_time(input_string):
     pattern = r'END:\s*([a-zA-Z]+),\s*([\d.]+)'
     match = re.search(pattern, input_string)
-
-    return [match.group(1), match.group(2)]
+    if match:
+        return [match.group(1), match.group(2)]
+    else:
+        return [None, None]
 
 def decode_round(input_string):
     pattern = r'NEXT-ROUND:\s*(\d)'
@@ -199,7 +212,7 @@ def on_connect():
         connect_button.pack_forget()
 
 def load_stadium_view():
-    global root, stadium_photo, canvas, dots
+    global root, stadium_photo, canvas, dots, disconnected_colors
     # Load the stadium image
     stadium_image_path = './static/images/stadium.png'  # Adjust the path to your image
     stadium_image = Image.open(stadium_image_path)
@@ -223,7 +236,7 @@ def load_stadium_view():
     dots = {}
     dot_size = 8
     for color, [player, laps, points] in players.items():
-        if color in dot_positions:
+        if color in dot_positions and color not in disconnected_colors:
             pos = dot_positions[color]
             dots[color] = canvas.create_oval(pos[0], pos[1], pos[0] + dot_size, pos[1] + dot_size, fill=color)
 
@@ -235,8 +248,9 @@ def load_stadium_view():
 
 def show_times_modal(times):
     for color, time in times:
-        player = players[color][0]
-        update_times_modal(player, time)
+        if color not in disconnected_colors:
+            player = players[color][0]
+            update_times_modal(player, time)
     times_frame.place(x=0, y=0)
     root.after(5000, hide_times_modal)
 
@@ -248,8 +262,13 @@ def create_end_game_modal(data):
     global root, end_game_frame, player_times_labels, players
     end_game_frame = tk.Frame(root, width=1280, height=720)
     end_game_frame.pack_propagate(False)
-    color, best_time = data
-    player = players[color][0]
+    try:
+        color, best_time = data
+        player = players[color][0]
+    except :
+        color = 'None'
+        best_time = 'None'
+        player = 'None'
 
     best_time_label = tk.Label(end_game_frame, text=f'Best time of this game: {player} {best_time}')
     best_time_label.pack(expand=True)
@@ -311,21 +330,31 @@ def create_lap_modal():
     
     player_lap_labels = {}
     for color, [player, lap, points] in players.items():
-        player_lap_label = tk.Label(square, text=f"{player}: lap no. {lap}", fg=color)
-        player_lap_label.pack(expand=True)
-        player_lap_labels[player] = player_lap_label
+        if color not in disconnected_colors:
+            player_lap_label = tk.Label(square, text=f"{player}: lap no. {lap}", fg=color)
+            player_lap_label.pack(expand=True)
+            player_lap_labels[player] = player_lap_label
 
 def update_lap_count(player, new_lap):
     global player_lap_labels
     if player in player_lap_labels:
         player_lap_labels[player].config(text=f"{player}: lap no. {new_lap}")
 
+def hide_player(color):
+    global disconnected_colors, dots
+    if color not in disconnected_colors:
+        disconnected_colors.append(color)
+    player = players[color][0]
+    update_times_modal(player, 'DISCONNECTED')
+    update_lap_count(player, "DISCONNECTED")
+
 def start_game():
     global canvas, start_time, block_moving, player_lap, stop_event
     player_lap = 0
     for color, [player, lap, points] in players.items():
-        lap = 0
-        update_lap_count(player, lap)
+        if color not in disconnected_colors:
+            lap = 0
+            update_lap_count(player, lap)
     line_id = canvas.create_line(640, 110, 640, 210, fill="white", width=2)
     time.sleep(3)
     canvas.delete(line_id)
@@ -390,18 +419,21 @@ def send_time():
     sock.sendall(message.encode())
 
 def update_dot_position():
-    global players_coordinates, dots, stop_event
+    global players_coordinates, dots, stop_event, disconnected_colors
     dot_size = 8
     while not stop_event.is_set():
         for color, moves in list(players_coordinates.items()):
+            if color in dots and color in disconnected_colors:
+                canvas.move(dots[color], 2000, 2000)
+                dots.pop(color)
             if moves:
                 x, y = moves.popleft()
-                if color in dots:
+                if color in dots and color not in disconnected_colors:
                     current_coords = canvas.coords(dots[color])
                     if current_coords[:2] != [x, y]:
                         canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+            
         time.sleep(0.01)
-
 
 # GUI setup
 root = tk.Tk()

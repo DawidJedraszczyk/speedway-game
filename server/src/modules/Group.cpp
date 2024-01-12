@@ -10,6 +10,7 @@
 void Group::addClient(int client_socket, const std::string& nickname, const std::string& color) {
     client_sockets.push_back(client_socket);
     players.push_back({nickname, color});
+    socketToColorMap[client_socket] = color;
 }
 
 std::vector<int>& Group::getClients() {
@@ -65,7 +66,14 @@ void Group::handleClientMessages(int client_socket) {
 
         if (bytes_read <= 0) {
             std::cerr << "Client disconnected or error occurred. Socket: " << client_socket << std::endl;
+            std::stringstream disconnectedPlayer;
+            disconnectedPlayer << "DISCONNECTED: " << getColorBySocket(client_socket) << ";";
             close(client_socket);
+            removeClient(client_socket);
+            sendToAllClients(disconnectedPlayer.str());
+            if (getClients().size() < 2){
+                endGame();
+            }
             break;
         }
 
@@ -77,7 +85,7 @@ void Group::handleClientMessages(int client_socket) {
             std::string player_nickname = matches[1].str();
             double player_time = std::stod(matches[2]);
             game.addTime(player_nickname, player_time);
-            if (game.getCurrentRoundTimesSize() == players.size()){
+            if (game.getCurrentRoundTimesSize() == getClients().size()){
                 std::stringstream timesTable;
                 for (const auto& time : game.getCurrentRoundTimes()) {
                     timesTable << "TIMES: " << time.first << ", " << time.second << ";";
@@ -109,4 +117,37 @@ void Group::handleClientMessages(int client_socket) {
             sendToAllClients(message);
         }
     }
+}
+
+std::string Group::getColorBySocket(int client_socket) const {
+    auto it = socketToColorMap.find(client_socket);
+    if (it != socketToColorMap.end()) {
+        return it->second;
+    }
+    return ""; 
+}
+
+void Group::removeClient(int client_socket) {
+    client_sockets.erase(std::remove(client_sockets.begin(), client_sockets.end(), client_socket), client_sockets.end());
+    socketToColorMap.erase(client_socket);
+}
+
+void Group::endGame() {
+    game.setGameEnded();
+    std::stringstream endGameMessage;
+    if (game.getCountOfPlayedRounds() > 0){
+        std::pair<std::string, double> best_time;
+        best_time = game.getBestTime(); 
+        endGameMessage << "END: " << best_time.first << "," << best_time.second << ";";
+    }
+    else {
+        endGameMessage << "END: " << "None" << "," << "None" << ";";;
+    }
+    sendToAllClients(endGameMessage.str());
+
+    for (int client_socket : client_sockets) {
+        close(client_socket);
+    }
+
+    client_sockets.clear();
 }

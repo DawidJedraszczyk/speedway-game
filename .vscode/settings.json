@@ -62,6 +62,8 @@
     "string": "cpp",
     "map": "cpp",
     "iosfwd": "cpp",
-    "sstream": "cpp"
+    "sstream": "cpp",
+    "mutex": "cpp",
+    "cstring": "cpp"
   }
 }

@@ -52,12 +52,6 @@ void handle_client(int client_socket) {
         
     }
 
-    if (current_group.getStarted()) {
-        send(client_socket, "Game already started", strlen("Game already started"), 0);
-        close(client_socket);
-        return;
-    }
-
     std::string message = current_group.getNicknamesString();
     std::stringstream playersList;
     playersList << "PLAYERS: " << message << ";";
