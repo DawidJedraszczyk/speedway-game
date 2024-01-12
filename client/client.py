@@ -197,7 +197,7 @@ def player_reached_checkpoint(checkpoint):
             players[player_color] = [nick, player_lap, player_points]
             update_lap_count(nick, player_lap)
             send_lap()
-            if player_lap == 2:
+            if player_lap == 4:
                 end_time = time.time()
                 player_race_time = end_time - start_time
                 time.sleep(1)

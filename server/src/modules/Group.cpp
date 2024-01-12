@@ -29,7 +29,7 @@ std::string Group::getNicknamesString() const {
 }
 
 void Group::startGameTimer() {
-    for (int i = 5; i > 0; --i) {
+    for (int i = 30; i > 0; --i) {
         std::lock_guard<std::mutex> lock(mtx);
         if (group_started) {
             return;
@@ -99,7 +99,7 @@ void Group::handleClientMessages(int client_socket) {
                 }
                 sendToAllClients(pointsTable.str());
 
-                if (played_rounds == 2){
+                if (played_rounds == 4){
                     best_time = game.getBestTime();
                     std::stringstream endGameMessage;
                     endGameMessage << "END: " << best_time.first << "," << best_time.second << ";";
