@@ -68,7 +68,6 @@ void handle_client(int client_socket) {
     }
 }
 
-
 int main() {
     int server_fd, new_socket;
     struct sockaddr_in address;
