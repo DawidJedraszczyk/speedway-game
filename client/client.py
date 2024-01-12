@@ -1,5 +1,6 @@
 import socket
 import threading
+from collections import deque
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from PIL import Image, ImageTk, ImageDraw
@@ -76,8 +77,8 @@ def update_player_list(input_string):
         player_labels.append(label)
         if nickname == nick:
             player_color = color
-        else:
-            players_coordinates[color] = []
+        if color not in players_coordinates and nickname != nick:
+            players_coordinates[color] = deque()
 
 def update_timer(message):
     timer_label.config(text=message)
@@ -320,7 +321,7 @@ def update_lap_count(player, new_lap):
         player_lap_labels[player].config(text=f"{player}: lap no. {new_lap}")
 
 def start_game():
-    global canvas, start_time, block_moving, player_lap
+    global canvas, start_time, block_moving, player_lap, stop_event
     player_lap = 0
     for color, [player, lap, points] in players.items():
         lap = 0
@@ -330,6 +331,7 @@ def start_game():
     canvas.delete(line_id)
     start_time = time.time()
     block_moving = False
+    stop_event = threading.Event()
     updating_dots_position_thread = threading.Thread(target=update_dot_position)
     updating_dots_position_thread.start()
     moving_thread = threading.Thread(target=moving)
@@ -388,23 +390,18 @@ def send_time():
     sock.sendall(message.encode())
 
 def update_dot_position():
-    global dots, players_coordinates
-    while(True):
-        dot_size = 8
-        for color, moves in players_coordinates.items():
-            print(color, moves[0][0], moves[0][1])
-            # if len(moves) > 0:
-            #     x = moves[0][0]
-            #     y = moves[0][1]
-            #     canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
-            #     moves = moves[1:]
-        # dot_size = 8
-        # canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
-        # print(players_coordinates)
-        time.sleep(0.1)
-    # dot_size = 8
-    # if color in dots:
-    #     canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+    global players_coordinates, dots, stop_event
+    dot_size = 8
+    while not stop_event.is_set():
+        for color, moves in list(players_coordinates.items()):
+            if moves:
+                x, y = moves.popleft()
+                if color in dots:
+                    current_coords = canvas.coords(dots[color])
+                    if current_coords[:2] != [x, y]:
+                        canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+        time.sleep(0.01)
+
 
 # GUI setup
 root = tk.Tk()
