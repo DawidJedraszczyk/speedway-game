@@ -103,7 +103,6 @@ int main() {
     }
 
     while (true) {
-        // Akceptacja połączenia od klienta
         if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
             perror("accept");
             exit(EXIT_FAILURE);

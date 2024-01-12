@@ -19,6 +19,7 @@ player_lap = 0
 player_points = 0
 block_moving = True
 round = 0
+players_coordinates = {}
 
 def player_reached_checkpoint(checkpoint):
     global player_unreached_checkpoints, player_points, player_lap, start_time, end_time, square, canvas, player_race_time, block_moving
@@ -55,7 +56,7 @@ def check_if_player_reached_checkpoint(x, y):
         player_reached_checkpoint('right')
 
 def update_player_list(input_string):
-    global player_labels, player_color, dots
+    global player_labels, player_color, dots, players_coordinates
     for label in player_labels:
         label.destroy()
     player_labels.clear()
@@ -67,6 +68,7 @@ def update_player_list(input_string):
         laps = 0
         points = 0
         players[color] = [nickname, laps, points]
+
         
         label = tk.Label(root, text=player, bg='#ffffff', fg='black', font=("Helvetica", 12))
         label.pack()
@@ -74,12 +76,14 @@ def update_player_list(input_string):
         player_labels.append(label)
         if nickname == nick:
             player_color = color
+        else:
+            players_coordinates[color] = []
 
 def update_timer(message):
     timer_label.config(text=message)
 
 def listen_for_updates():
-    global sock, player_color, canvas, square, players, round
+    global sock, player_color, canvas, square, players, round, players_coordinates
     while True:
         try:
             data_rec = sock.recv(1024).decode()
@@ -96,7 +100,7 @@ def listen_for_updates():
                     for move in res:
                         color, x, y = move
                         if color != player_color:
-                            root.after_idle(update_dot_position, x, y, color)
+                            players_coordinates[color].append([x, y])
                 if "LAP" in data:
                     laps = decode_laps(data)
                     for lap in laps:
@@ -326,6 +330,8 @@ def start_game():
     canvas.delete(line_id)
     start_time = time.time()
     block_moving = False
+    updating_dots_position_thread = threading.Thread(target=update_dot_position)
+    updating_dots_position_thread.start()
     moving_thread = threading.Thread(target=moving)
     moving_thread.start()
     
@@ -381,11 +387,24 @@ def send_time():
     message = f"{player_color}-TIME: {player_race_time}"
     sock.sendall(message.encode())
 
-def update_dot_position(x, y, color):
-    global dots
-    dot_size = 8
-    if color in dots:
-        canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+def update_dot_position():
+    global dots, players_coordinates
+    while(True):
+        dot_size = 8
+        for color, moves in players_coordinates.items():
+            print(color, moves[0][0], moves[0][1])
+            # if len(moves) > 0:
+            #     x = moves[0][0]
+            #     y = moves[0][1]
+            #     canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+            #     moves = moves[1:]
+        # dot_size = 8
+        # canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+        # print(players_coordinates)
+        time.sleep(0.1)
+    # dot_size = 8
+    # if color in dots:
+    #     canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
 
 # GUI setup
 root = tk.Tk()
