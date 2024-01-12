@@ -24,68 +24,7 @@ players_coordinates = {}
 disconnected_colors = []
 game_started = False
 
-
-def player_reached_checkpoint(checkpoint):
-    global player_unreached_checkpoints, player_points, player_lap, start_time, end_time, square, canvas, player_race_time, block_moving
-    if checkpoint == player_unreached_checkpoints[0]:
-        player_unreached_checkpoints = player_unreached_checkpoints[1:]
-        if len(player_unreached_checkpoints) == 0:
-            player_lap += 1
-            players[player_color] = [nick, player_lap, player_points]
-            update_lap_count(nick, player_lap)
-            send_lap()
-            if player_lap == 2:
-                end_time = time.time()
-                player_race_time = end_time - start_time
-                time.sleep(1)
-                block_moving = True
-                send_time()
-            player_unreached_checkpoints = checkpoints_list
-
-def check_if_player_reached_checkpoint(x, y):
-    # Pierwszy punkt: x=640 y=od 120do210 
-    if x == 630 and (120 <= y <= 210):
-        player_reached_checkpoint('up')
-
-    # drugi punkt: x=od90 do 230 y=360
-    if (90 <= x <= 230) and y == 360:
-        player_reached_checkpoint('left')
-
-    # trzeci punkt: x=650 yod520 do 610 
-    if x==650 and (520 <= y <= 610):
-        player_reached_checkpoint('down')
-
-    # czwart punkt: x=1080 do 1200 y =360.
-    if (1080 <= x <= 1200) and y == 360:
-        player_reached_checkpoint('right')
-
-def update_player_list(input_string):
-    global player_labels, player_color, dots, players_coordinates
-    for label in player_labels:
-        label.destroy()
-    player_labels.clear()
-
-    player_list = input_string.replace("PLAYERS: ", "")
-    for player in player_list.split(', '):
-        nickname, color = player.rsplit(' (', 1)
-        color = color.rstrip(')\n').strip() 
-        laps = 0
-        points = 0
-        players[color] = [nickname, laps, points]
-
-        
-        label = tk.Label(root, text=player, bg='#ffffff', fg='black', font=("Helvetica", 12))
-        label.pack()
-        
-        player_labels.append(label)
-        if nickname == nick:
-            player_color = color
-        if color not in players_coordinates and nickname != nick:
-            players_coordinates[color] = deque()
-
-def update_timer(message):
-    timer_label.config(text=message)
-
+#main loop
 def listen_for_updates():
     global sock, player_color, canvas, square, players, round, players_coordinates, block_moving, game_started
     while True:
@@ -144,50 +83,8 @@ def listen_for_updates():
             print(f"Error: {e}")
             break
 
-def decode_best_time(input_string):
-    pattern = r'END:\s*([a-zA-Z]+),\s*([\d.]+)'
-    match = re.search(pattern, input_string)
-    if match:
-        return [match.group(1), match.group(2)]
-    else:
-        return [None, None]
 
-def decode_round(input_string):
-    pattern = r'NEXT-ROUND:\s*(\d)'
-    match = re.search(pattern, input_string)
-
-    return match.group(1)
-
-def decode_points(input_string):
-    matches = re.findall(r'(\w+), (\d+)', input_string)
-
-    result = [[color, int(number)] for color, number in matches]
-    return result
-
-def decode_times(input_string):
-    timePattern = re.compile(r'(\w+), (\d+\.\d+)')
-    matches = re.findall(timePattern, input_string)
-
-    times_list = [[match[0].lower(), match[1]] for match in matches]
-    return times_list
-
-def decode_laps(input_string):
-    pattern = r"(red|blue|white|yellow)-LAP: ?(\d+)"
-    matches = re.findall(pattern, input_string)
-
-    # Create a list of lists including the color and lap number
-    laps_list = [[match[0].lower(), int(match[1])] for match in matches]
-    return laps_list
-
-def decode_coordinates(input_string):
-    pattern = r"(red|blue|white|yellow)-COORD:([+-]?[0-9]*\.?[0-9]+), ([+-]?[0-9]*\.?[0-9]+)"
-    matches = re.findall(pattern, input_string)
-
-    # Create a list of lists including the color and coordinates
-    coordinates_list = [[match[0].lower(), float(match[1]), float(match[2])] for match in matches]
-
-    return coordinates_list
-
+#logic
 def connect_to_server(nick, server_address=('127.0.0.1', 8000)):
     global sock
     try:
@@ -245,6 +142,192 @@ def load_stadium_view():
     create_times_modal()
     canvas.update()
     start_game()
+
+def update_player_list(input_string):
+    global player_labels, player_color, dots, players_coordinates
+    for label in player_labels:
+        label.destroy()
+    player_labels.clear()
+
+    player_list = input_string.replace("PLAYERS: ", "")
+    for player in player_list.split(', '):
+        nickname, color = player.rsplit(' (', 1)
+        color = color.rstrip(')\n').strip() 
+        laps = 0
+        points = 0
+        players[color] = [nickname, laps, points]
+
+        
+        label = tk.Label(root, text=player, bg='#ffffff', fg='black', font=("Helvetica", 12))
+        label.pack()
+        
+        player_labels.append(label)
+        if nickname == nick:
+            player_color = color
+        if color not in players_coordinates and nickname != nick:
+            players_coordinates[color] = deque()
+
+def start_game():
+    global canvas, start_time, block_moving, player_lap, stop_event
+    player_lap = 0
+    for color, [player, lap, points] in players.items():
+        if color not in disconnected_colors:
+            lap = 0
+            update_lap_count(player, lap)
+    line_id = canvas.create_line(640, 110, 640, 210, fill="white", width=2)
+    time.sleep(3)
+    canvas.delete(line_id)
+    start_time = time.time()
+    block_moving = False
+    stop_event = threading.Event()
+    updating_dots_position_thread = threading.Thread(target=update_dot_position)
+    updating_dots_position_thread.start()
+    moving_thread = threading.Thread(target=moving)
+    moving_thread.start()
+
+
+#movement
+
+def player_reached_checkpoint(checkpoint):
+    global player_unreached_checkpoints, player_points, player_lap, start_time, end_time, square, canvas, player_race_time, block_moving
+    if checkpoint == player_unreached_checkpoints[0]:
+        player_unreached_checkpoints = player_unreached_checkpoints[1:]
+        if len(player_unreached_checkpoints) == 0:
+            player_lap += 1
+            players[player_color] = [nick, player_lap, player_points]
+            update_lap_count(nick, player_lap)
+            send_lap()
+            if player_lap == 2:
+                end_time = time.time()
+                player_race_time = end_time - start_time
+                time.sleep(1)
+                block_moving = True
+                send_time()
+            player_unreached_checkpoints = checkpoints_list
+
+def check_if_player_reached_checkpoint(x, y):
+    # Pierwszy punkt: x=640 y=od 120do210 
+    if x == 630 and (120 <= y <= 210):
+        player_reached_checkpoint('up')
+
+    # drugi punkt: x=od90 do 230 y=360
+    if (90 <= x <= 230) and y == 360:
+        player_reached_checkpoint('left')
+
+    # trzeci punkt: x=650 yod520 do 610 
+    if x==650 and (520 <= y <= 610):
+        player_reached_checkpoint('down')
+
+    # czwart punkt: x=1080 do 1200 y =360.
+    if (1080 <= x <= 1200) and y == 360:
+        player_reached_checkpoint('right')
+
+def moving():
+    global root, pressed_keys
+    root.bind("<KeyPress>", key_press)
+    root.bind("<KeyRelease>", key_release)
+
+def key_press(event):
+    global block_moving
+    if not block_moving:
+        pressed_keys[event.keysym] = True
+        check_keys()
+
+def key_release(event):
+    pressed_keys[event.keysym] = False
+
+def check_keys():
+    if pressed_keys["Left"]:
+        move_user_dot(-10, 0)
+    if pressed_keys["Right"]:
+        move_user_dot(10, 0)
+    if pressed_keys["Up"]:
+        move_user_dot(0, -10)
+    if pressed_keys["Down"]:
+        move_user_dot(0, 10)
+
+def move_user_dot(dx, dy):
+    global dots, player_color
+    if player_color in dots:
+        current_x, current_y = canvas.coords(dots[player_color])[:2]
+        new_x = current_x + dx
+        new_y = current_y + dy
+
+        if 90 <= new_x <= 1200 and 120 <= new_y <= 610:
+            canvas.move(dots[player_color], dx, dy)
+
+            send_coordinates(new_x, new_y)
+            check_if_player_reached_checkpoint(new_x, new_y)
+
+def update_dot_position():
+    global players_coordinates, dots, stop_event, disconnected_colors
+    dot_size = 8
+    while not stop_event.is_set():
+        for color, moves in list(players_coordinates.items()):
+            if color in dots and color in disconnected_colors:
+                canvas.move(dots[color], 2000, 2000)
+                dots.pop(color)
+            if moves:
+                x, y = moves.popleft()
+                if color in dots and color not in disconnected_colors:
+                    current_coords = canvas.coords(dots[color])
+                    if current_coords[:2] != [x, y]:
+                        canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
+            
+        time.sleep(0.01)
+
+
+#decoders
+
+def decode_best_time(input_string):
+    pattern = r'END:\s*([a-zA-Z]+),\s*([\d.]+)'
+    match = re.search(pattern, input_string)
+    if match:
+        return [match.group(1), match.group(2)]
+    else:
+        return [None, None]
+
+def decode_round(input_string):
+    pattern = r'NEXT-ROUND:\s*(\d)'
+    match = re.search(pattern, input_string)
+
+    return match.group(1)
+
+def decode_points(input_string):
+    matches = re.findall(r'(\w+), (\d+)', input_string)
+
+    result = [[color, int(number)] for color, number in matches]
+    return result
+
+def decode_times(input_string):
+    timePattern = re.compile(r'(\w+), (\d+\.\d+)')
+    matches = re.findall(timePattern, input_string)
+
+    times_list = [[match[0].lower(), match[1]] for match in matches]
+    return times_list
+
+def decode_laps(input_string):
+    pattern = r"(red|blue|white|yellow)-LAP: ?(\d+)"
+    matches = re.findall(pattern, input_string)
+
+    # Create a list of lists including the color and lap number
+    laps_list = [[match[0].lower(), int(match[1])] for match in matches]
+    return laps_list
+
+def decode_coordinates(input_string):
+    pattern = r"(red|blue|white|yellow)-COORD:([+-]?[0-9]*\.?[0-9]+), ([+-]?[0-9]*\.?[0-9]+)"
+    matches = re.findall(pattern, input_string)
+
+    # Create a list of lists including the color and coordinates
+    coordinates_list = [[match[0].lower(), float(match[1]), float(match[2])] for match in matches]
+
+    return coordinates_list
+
+
+#gui(modals)
+
+def update_timer(message):
+    timer_label.config(text=message)
 
 def show_times_modal(times):
     for color, time in times:
@@ -348,60 +431,8 @@ def hide_player(color):
     update_times_modal(player, 'DISCONNECTED')
     update_lap_count(player, "DISCONNECTED")
 
-def start_game():
-    global canvas, start_time, block_moving, player_lap, stop_event
-    player_lap = 0
-    for color, [player, lap, points] in players.items():
-        if color not in disconnected_colors:
-            lap = 0
-            update_lap_count(player, lap)
-    line_id = canvas.create_line(640, 110, 640, 210, fill="white", width=2)
-    time.sleep(3)
-    canvas.delete(line_id)
-    start_time = time.time()
-    block_moving = False
-    stop_event = threading.Event()
-    updating_dots_position_thread = threading.Thread(target=update_dot_position)
-    updating_dots_position_thread.start()
-    moving_thread = threading.Thread(target=moving)
-    moving_thread.start()
-    
-def moving():
-    global root, pressed_keys
-    root.bind("<KeyPress>", key_press)
-    root.bind("<KeyRelease>", key_release)
 
-def key_press(event):
-    global block_moving
-    if not block_moving:
-        pressed_keys[event.keysym] = True
-        check_keys()
-
-def key_release(event):
-    pressed_keys[event.keysym] = False
-
-def check_keys():
-    if pressed_keys["Left"]:
-        move_user_dot(-10, 0)
-    if pressed_keys["Right"]:
-        move_user_dot(10, 0)
-    if pressed_keys["Up"]:
-        move_user_dot(0, -10)
-    if pressed_keys["Down"]:
-        move_user_dot(0, 10)
-
-def move_user_dot(dx, dy):
-    global dots, player_color
-    if player_color in dots:
-        current_x, current_y = canvas.coords(dots[player_color])[:2]
-        new_x = current_x + dx
-        new_y = current_y + dy
-
-        if 90 <= new_x <= 1200 and 120 <= new_y <= 610:
-            canvas.move(dots[player_color], dx, dy)
-
-            send_coordinates(new_x, new_y)
-            check_if_player_reached_checkpoint(new_x, new_y)
+#sending
 
 def send_coordinates(x, y):
     global sock, player_color
@@ -418,22 +449,7 @@ def send_time():
     message = f"{player_color}-TIME: {player_race_time}"
     sock.sendall(message.encode())
 
-def update_dot_position():
-    global players_coordinates, dots, stop_event, disconnected_colors
-    dot_size = 8
-    while not stop_event.is_set():
-        for color, moves in list(players_coordinates.items()):
-            if color in dots and color in disconnected_colors:
-                canvas.move(dots[color], 2000, 2000)
-                dots.pop(color)
-            if moves:
-                x, y = moves.popleft()
-                if color in dots and color not in disconnected_colors:
-                    current_coords = canvas.coords(dots[color])
-                    if current_coords[:2] != [x, y]:
-                        canvas.coords(dots[color], x, y, x + dot_size, y + dot_size)
-            
-        time.sleep(0.01)
+
 
 # GUI setup
 root = tk.Tk()
@@ -446,7 +462,7 @@ max_size = (300, 300)
 original_image.thumbnail(max_size, Image.LANCZOS)
 logo_photo = ImageTk.PhotoImage(original_image)
 logo_label = tk.Label(root, image=logo_photo, borderwidth=0, highlightthickness=0)
-logo_label.pack(pady=20)
+logo_label.pack(pady=100)
 
 # GUI Elements
 root.configure(bg='#ffffff')
@@ -462,6 +478,5 @@ timer_label.pack(pady=10)
 
 root.mainloop()
 
-# Ensure the socket is closed when the GUI is closed
 if sock:
     sock.close()

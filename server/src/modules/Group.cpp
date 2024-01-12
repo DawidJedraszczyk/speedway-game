@@ -65,7 +65,6 @@ void Group::handleClientMessages(int client_socket) {
         int bytes_read = read(client_socket, buffer, sizeof(buffer) - 1);
 
         if (bytes_read <= 0) {
-            std::cerr << "Client disconnected or error occurred. Socket: " << client_socket << std::endl;
             std::stringstream disconnectedPlayer;
             disconnectedPlayer << "DISCONNECTED: " << getColorBySocket(client_socket) << ";";
             close(client_socket);
